@@ -1,5 +1,8 @@
 [project]
 dependencies = [
+    "httpx>=0.28.1",
+    "polars>=1.24.0",
+    "toml>=0.10.2",
 ]
 description = "A RAG-based chatbot for Indonesian Income Tax (PPh) & Value-Added Tax (PPN) policy socialization, built to improve taxpayer compliance."
 name = "tax-rag"
