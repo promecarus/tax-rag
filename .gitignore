@@ -1,3 +1,5 @@
+.env.toml
+**/__pycache__
 /.ruff_cache
 /.venv
 temp
