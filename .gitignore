@@ -1,6 +1,7 @@
 .env.toml
 **/__pycache__
 /.ruff_cache
+/.streamlit
 /.venv
 temp
 tmp

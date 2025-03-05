@@ -4,6 +4,7 @@ import typing
 
 import httpx
 import toml
+from lxml import html
 
 cfg: dict[str, typing.Any] = toml.load(f=".env.toml")
 
@@ -61,3 +62,7 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
             except Exception as e:  # noqa: PERF203
                 print(permalink, e)  # noqa: T201
                 time.sleep(0.1)
+
+
+def strip_html_tags(data: str) -> str:
+    return html.fromstring(data).text_content()
