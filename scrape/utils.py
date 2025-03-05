@@ -59,7 +59,7 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
                 )
                 if response.status_code == 200:
                     return response.json()["data"][0]
-            except Exception as e:  # noqa: PERF203
+            except Exception as e:
                 print(permalink, e)  # noqa: T201
                 time.sleep(0.1)
 
