@@ -158,3 +158,19 @@ if not path_04.exists():
 path_04_time: float = time.time() - start - accumulate_time
 accumulate_time += path_04_time
 print(path_04, f"created in {path_04_time:.2f} seconds.")  # noqa: T201
+
+path_05: Path = path_final / "regulation.csv"
+if not path_05.exists():
+    (
+        pl.read_csv(source=path_03)
+        .select(
+            [
+                pl.col(name="permalink"),
+                pl.col(name="body_final"),
+            ],
+        )
+        .write_csv(file=path_05)
+    )
+path_05_time: float = time.time() - start - accumulate_time
+accumulate_time += path_05_time
+print(path_05, f"created in {path_05_time:.2f} seconds.")  # noqa: T201
