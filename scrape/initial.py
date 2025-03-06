@@ -145,7 +145,11 @@ if not path_04.exists():
                     exprs=[pl.col(name="permalink"), pl.col(name="chunk_num")],
                     separator="#",
                 ).alias(name="id"),
-                pl.struct(pl.col(name="permalink")).alias(name="metadata"),
+                pl.struct(
+                    pl.col(name="permalink"),
+                    pl.col(name="status_dokumen"),
+                    pl.col(name="topik"),
+                ).alias(name="metadata"),
                 pl.col(name="chunk").alias(name="document"),
             ],
         )
