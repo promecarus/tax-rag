@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+import re
 import time
 
 import polars as pl
@@ -7,8 +8,9 @@ import utils
 
 path_raw = pathlib.Path("var/01_raw")
 path_cleaned = pathlib.Path("var/02_cleaned")
+path_final = pathlib.Path("var/03_final")
 
-for path in [path_raw, path_cleaned]:
+for path in [path_raw, path_cleaned, path_final]:
     pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 
 start: float = time.time()
@@ -109,3 +111,42 @@ if not pathlib.Path(path_03).exists():
 path_03_time: float = time.time() - start - accumulate_time
 accumulate_time += path_03_time
 print(path_03, f"created in {path_03_time:.2f} seconds.")  # noqa: T201
+
+path_04: pathlib.Path = path_final / "embed.json"
+if not pathlib.Path(path_04).exists():
+    stem: str = path_04.stem
+    if not re.fullmatch(pattern=r"embed_\d+", string=stem):
+        stem = "embed_512"
+    chunk_size: int = int(stem.split(sep="_")[1])
+    overlap: int = int(chunk_size * 0.1)
+    (
+        pl.read_csv(source=path_03)
+        .with_columns(
+            pl.col(name="body_final_text_only").map_elements(
+                function=lambda text: utils.chunk_text(
+                    text=text,
+                    chunk_size=chunk_size,
+                    overlap=overlap,
+                ),
+                return_dtype=pl.List(
+                    inner=pl.Struct(fields={"chunk": pl.Utf8, "chunk_num": pl.Utf8}),
+                ),
+            ),
+        )
+        .explode(columns="body_final_text_only")
+        .unnest(columns="body_final_text_only")
+        .select(
+            [
+                pl.concat_str(
+                    exprs=[pl.col(name="permalink"), pl.col(name="chunk_num")],
+                    separator="#",
+                ).alias(name="id"),
+                pl.struct(pl.col(name="permalink")).alias(name="metadata"),
+                pl.col(name="chunk").alias(name="document"),
+            ],
+        )
+        .write_json(file=path_04)
+    )
+path_04_time: float = time.time() - start - accumulate_time
+accumulate_time += path_04_time
+print(path_04, f"created in {path_04_time:.2f} seconds.")  # noqa: T201

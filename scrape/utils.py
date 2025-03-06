@@ -66,3 +66,22 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
 
 def strip_html_tags(data: str) -> str:
     return html.fromstring(data).text_content()
+
+
+def chunk_text(text: str, chunk_size: int, overlap: int) -> list[dict]:
+    chunks: list[dict] = []
+    start = 0
+    chunk_num = 1
+
+    while start < len(text):
+        end: int = start + chunk_size
+        chunks.append(
+            {
+                "chunk": text[start:end],
+                "chunk_num": f"{chunk_size}-{chunk_num}",
+            },
+        )
+        start += chunk_size - overlap
+        chunk_num += 1
+
+    return chunks
