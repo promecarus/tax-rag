@@ -1,23 +1,27 @@
 import asyncio
-import pathlib
 import re
 import time
+from pathlib import Path
 
 import polars as pl
 import utils
 
-path_raw = pathlib.Path("var/01_raw")
-path_cleaned = pathlib.Path("var/02_cleaned")
-path_final = pathlib.Path("var/03_final")
+path_raw = Path("var/01_raw")
+path_clean = Path("var/02_clean")
+path_final = Path("var/03_final")
 
-for path in [path_raw, path_cleaned, path_final]:
-    pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+for path in [
+    path_raw,
+    path_clean,
+    path_final,
+]:
+    path.mkdir(parents=True, exist_ok=True)
 
 start: float = time.time()
 accumulate_time: float = 0.0
 
-path_01: pathlib.Path = path_raw / "01.json"
-if not pathlib.Path(path_01).exists():
+path_01: Path = path_raw / "01.json"
+if not path_01.exists():
     (
         pl.DataFrame(data=asyncio.run(main=utils.get_all_list_regs(limit=4000)))
         .unique(subset="permalink")
@@ -27,8 +31,8 @@ path_01_time: float = time.time() - start - accumulate_time
 accumulate_time += path_01_time
 print(path_01, f"created in {path_01_time:.2f} seconds.")  # noqa: T201
 
-path_02: pathlib.Path = path_raw / "02.json"
-if not pathlib.Path(path_02).exists():
+path_02: Path = path_raw / "02.json"
+if not path_02.exists():
     (
         pl.read_json(source=path_01)
         .with_columns(
@@ -45,8 +49,8 @@ path_02_time: float = time.time() - start - accumulate_time
 accumulate_time += path_02_time
 print(path_02, f"created in {path_02_time:.2f} seconds.")  # noqa: T201
 
-path_03: pathlib.Path = path_cleaned / "01.csv"
-if not pathlib.Path(path_03).exists():
+path_03: Path = path_clean / "01.csv"
+if not path_03.exists():
     (
         pl.read_json(source=path_02)
         .select(
@@ -112,8 +116,8 @@ path_03_time: float = time.time() - start - accumulate_time
 accumulate_time += path_03_time
 print(path_03, f"created in {path_03_time:.2f} seconds.")  # noqa: T201
 
-path_04: pathlib.Path = path_final / "embed.json"
-if not pathlib.Path(path_04).exists():
+path_04: Path = path_final / "embed.json"
+if not path_04.exists():
     stem: str = path_04.stem
     if not re.fullmatch(pattern=r"embed_\d+", string=stem):
         stem = "embed_512"

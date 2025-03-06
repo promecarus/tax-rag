@@ -65,7 +65,7 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
 
 
 def strip_html_tags(data: str) -> str:
-    return html.fromstring(data).text_content()
+    return html.fromstring(html=data).text_content()
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[dict]:
