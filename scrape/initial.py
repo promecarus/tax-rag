@@ -190,3 +190,18 @@ if not path_06.exists():
 path_06_time: float = time.time() - start - accumulate_time
 accumulate_time += path_06_time
 print(path_06, f"created in {path_06_time:.2f} seconds.")  # noqa: T201
+
+path_07: Path = path_final / "info_topik.csv"
+if not path_07.exists():
+    (
+        pl.read_json(source=path_01)
+        .select(["topik"])
+        .explode(columns="topik")
+        .unnest(columns="topik")
+        .unique()
+        .sort(by="uuid")
+        .write_csv(file=path_07)
+    )
+path_07_time: float = time.time() - start - accumulate_time
+accumulate_time += path_07_time
+print(path_07, f"created in {path_07_time:.2f} seconds.")  # noqa: T201
