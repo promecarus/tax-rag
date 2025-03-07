@@ -1,5 +1,6 @@
 [project]
 dependencies = [
+    "chromadb>=0.6.3",
     "httpx>=0.28.1",
     "lxml>=5.3.1",
     "polars>=1.24.0",

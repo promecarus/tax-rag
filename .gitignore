@@ -1,5 +1,6 @@
 .env.toml
 **/__pycache__
+/.chroma
 /.ruff_cache
 /.streamlit
 /.venv

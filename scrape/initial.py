@@ -3,6 +3,7 @@ import re
 import time
 from pathlib import Path
 
+import chromadb
 import polars as pl
 import utils
 
@@ -205,3 +206,37 @@ if not path_07.exists():
 path_07_time: float = time.time() - start - accumulate_time
 accumulate_time += path_07_time
 print(path_07, f"created in {path_07_time:.2f} seconds.")  # noqa: T201
+
+path_08: Path = Path(".chroma/chroma.sqlite3")
+if not path_08.exists():
+    chroma_client: chromadb.ClientAPI = chromadb.PersistentClient(
+        path=".chroma",
+        settings=chromadb.config.Settings(anonymized_telemetry=False),
+    )
+    collection: chromadb.Collection = chroma_client.create_collection(name="tax-rag")
+
+    data: pl.DataFrame = pl.read_json(source=path_04).filter(
+        [
+            pl.col(name="metadata")
+            .struct.field(name="status_dokumen")
+            .is_in(other=["Berlaku"]),
+            pl.col(name="metadata")
+            .struct.field(name="topik")
+            .str.contains(pattern=r"2|3"),
+        ],
+    )
+
+    max_batch: int = chroma_client.get_max_batch_size()
+
+    for i in range(0, len(data), max_batch):
+        batch: pl.DataFrame = data[i : i + max_batch]
+        collection.add(
+            ids=batch["id"].to_list(),
+            metadatas=batch["metadata"].to_list(),
+            documents=batch["document"].to_list(),
+        )
+path_08_time: float = time.time() - start - accumulate_time
+accumulate_time += path_08_time
+print(path_08, f"created in {path_08_time:.2f} seconds.")  # noqa: T201
+
+print(f"\nTotal time: {accumulate_time:.2f} seconds.")  # noqa: T201
