@@ -150,6 +150,8 @@ if not path_04.exists():
                     pl.col(name="permalink"),
                     pl.col(name="status_dokumen"),
                     pl.col(name="topik"),
+                    pl.col(name="jenis_peraturan"),
+                    pl.col(name="nomor_peraturan"),
                 ).alias(name="metadata"),
                 pl.col(name="chunk").alias(name="document"),
             ],
