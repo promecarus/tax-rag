@@ -11,6 +11,9 @@ if "msgs" not in st.session_state:
     st.session_state["msgs"] = []
 
 with st.sidebar:
+    if st.button(label="Clear chat"):
+        st.session_state["msgs"] = []
+
     model: str = st.selectbox(
         label="Select model:",
         options=sorted(
