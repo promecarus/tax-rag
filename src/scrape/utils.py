@@ -12,10 +12,10 @@ cfg: dict[str, typing.Any] = toml.load(f=".env.toml")
 async def req_list_regs(page: int, limit: int) -> httpx.Response:
     async with httpx.AsyncClient(timeout=60) as client:
         return await client.post(
-            url=f"{cfg['URL']['base']}/api/req-be",
+            url=f"{cfg['url']['base']}/api/req-be",
             json={
                 "method": "post",
-                "url": f"{cfg['URL']['api']}/peraturan/list",
+                "url": f"{cfg['url']['api']}/peraturan/list",
                 "data": {
                     "sorted_by": "tanggal_efektif[desc]",
                     "pagination": {"page": page, "limit": limit},
@@ -50,10 +50,10 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
         while True:
             try:
                 response: httpx.Response = client.post(
-                    url=f"{cfg['URL']['base']}/api/req-be",
+                    url=f"{cfg['url']['base']}/api/req-be",
                     json={
                         "method": "post",
-                        "url": f"{cfg['URL']['api']}/peraturan/detail",
+                        "url": f"{cfg['url']['api']}/peraturan/detail",
                         "data": {"permalink": permalink},
                     },
                 )

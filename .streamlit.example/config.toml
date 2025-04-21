@@ -292,5 +292,4 @@ font = "monospace"
 # Default: [ <path to local environment's secrets.toml file>, <path to project's secrets.toml file>,]
 files = [
     ".env.toml",
-    ".streamlit/secrets.toml",
 ]
