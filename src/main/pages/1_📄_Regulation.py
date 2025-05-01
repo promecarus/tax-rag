@@ -1,7 +1,7 @@
 import polars as pl
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
-from utils import get_df
+from utils import get_df, profile_card
 
 st.set_page_config(
     page_title="Regulation",
@@ -9,6 +9,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+with st.sidebar:
+    profile_card()
 
 st.title(body="📄 Regulation")
 
