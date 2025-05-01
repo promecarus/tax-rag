@@ -1,5 +1,7 @@
 [project]
 dependencies = [
+    "auth0-python>=4.9.0",
+    "authlib>=1.5.2",
     "chromadb>=0.6.3",
     "httpx>=0.28.1",
     "lxml>=5.3.1",
