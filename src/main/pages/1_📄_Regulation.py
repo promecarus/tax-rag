@@ -1,20 +1,7 @@
-from pathlib import Path
-
 import polars as pl
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
-
-
-@st.cache_data
-def get_df(source: str) -> pl.DataFrame:
-    match Path(source).suffix:
-        case ".csv":
-            return pl.read_csv(source=source)
-        case ".json":
-            return pl.read_json(source=source)
-        case _:
-            raise ValueError(f"Unsupported file extension: {source}")
-
+from utils import get_df
 
 st.set_page_config(
     page_title="Regulation",

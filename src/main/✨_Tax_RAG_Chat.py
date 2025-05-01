@@ -1,5 +1,4 @@
 import datetime
-from pathlib import Path
 
 import chromadb
 import ollama
@@ -7,17 +6,7 @@ import polars as pl
 import streamlit as st
 from auth0.authentication import GetToken
 from auth0.management import Auth0
-
-
-@st.cache_data
-def get_df(source: str) -> pl.DataFrame:
-    match Path(source).suffix:
-        case ".csv":
-            return pl.read_csv(source=source)
-        case ".json":
-            return pl.read_json(source=source)
-        case _:
-            raise ValueError(f"Unsupported file extension: {source}")
+from utils import get_df
 
 
 @st.dialog(title="Kelola Peran Pengguna", width="large")
