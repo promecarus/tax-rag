@@ -21,8 +21,7 @@ for path in [
 start: float = time.time()
 accumulate_time: float = 0.0
 
-path_01: Path = path_raw / "01.json"
-if not path_01.exists():
+if not (path_01 := path_raw / "index.json").exists():
     (
         pl.DataFrame(data=asyncio.run(main=utils.get_all_list_regs(limit=4000)))
         .unique(subset="permalink")
@@ -32,16 +31,12 @@ path_01_time: float = time.time() - start - accumulate_time
 accumulate_time += path_01_time
 print(path_01, f"created in {path_01_time:.2f} seconds.")  # noqa: T201
 
-path_02: Path = path_raw / "02.json"
-if not path_02.exists():
+if not (path_02 := path_raw / "detail.json").exists():
     (
         pl.read_json(source=path_01)
         .with_columns(
             pl.col(name="permalink")
-            .map_elements(
-                function=utils.get_detail_reg,
-                return_dtype=pl.Struct,
-            )
+            .map_elements(function=utils.get_detail_reg, return_dtype=pl.Struct)
             .alias(name="detail"),
         )
         .write_json(file=path_02)
@@ -50,8 +45,7 @@ path_02_time: float = time.time() - start - accumulate_time
 accumulate_time += path_02_time
 print(path_02, f"created in {path_02_time:.2f} seconds.")  # noqa: T201
 
-path_03: Path = path_clean / "01.csv"
-if not path_03.exists():
+if not (path_03 := path_clean / "processed.csv").exists():
     (
         pl.read_json(source=path_02)
         .select(
@@ -92,21 +86,15 @@ if not path_03.exists():
                 .str.replace_all(pattern=r"\s+", value=" ")
                 .alias(name="body_final_text_only"),
                 pl.col(name="peraturan_terbaru")
-                .list.eval(
-                    expr=pl.element().struct.field(name="permalink"),
-                )
+                .list.eval(expr=pl.element().struct.field(name="permalink"))
                 .list.sort()
                 .list.join(separator=" "),
                 pl.col(name="peraturan_sebelumnya")
-                .list.eval(
-                    expr=pl.element().struct.field(name="permalink"),
-                )
+                .list.eval(expr=pl.element().struct.field(name="permalink"))
                 .list.sort()
                 .list.join(separator=" "),
                 pl.col(name="peraturan_relevan")
-                .list.eval(
-                    expr=pl.element().struct.field(name="permalink"),
-                )
+                .list.eval(expr=pl.element().struct.field(name="permalink"))
                 .list.sort()
                 .list.join(separator=" "),
             ],
@@ -117,8 +105,7 @@ path_03_time: float = time.time() - start - accumulate_time
 accumulate_time += path_03_time
 print(path_03, f"created in {path_03_time:.2f} seconds.")  # noqa: T201
 
-path_04: Path = path_final / "embed.json"
-if not path_04.exists():
+if not (path_04 := path_final / "embed.json").exists():
     stem: str = path_04.stem
     if not re.fullmatch(pattern=r"embed_\d+", string=stem):
         stem = "embed_512"
@@ -162,40 +149,27 @@ path_04_time: float = time.time() - start - accumulate_time
 accumulate_time += path_04_time
 print(path_04, f"created in {path_04_time:.2f} seconds.")  # noqa: T201
 
-path_05: Path = path_final / "regulation.csv"
-if not path_05.exists():
+if not (path_05 := path_final / "regulation.csv").exists():
     (
         pl.read_csv(source=path_03)
-        .select(
-            [
-                pl.col(name="permalink"),
-                pl.col(name="body_final"),
-            ],
-        )
+        .select([pl.col(name="permalink"), pl.col(name="body_final")])
         .write_csv(file=path_05)
     )
 path_05_time: float = time.time() - start - accumulate_time
 accumulate_time += path_05_time
 print(path_05, f"created in {path_05_time:.2f} seconds.")  # noqa: T201
 
-path_06: Path = path_final / "info.csv"
-if not path_06.exists():
+if not (path_06 := path_final / "info.csv").exists():
     (
         pl.read_csv(source=path_03)
-        .drop(
-            [
-                pl.col(name="body_final"),
-                pl.col(name="body_final_text_only"),
-            ],
-        )
+        .drop([pl.col(name="body_final"), pl.col(name="body_final_text_only")])
         .write_csv(file=path_06)
     )
 path_06_time: float = time.time() - start - accumulate_time
 accumulate_time += path_06_time
 print(path_06, f"created in {path_06_time:.2f} seconds.")  # noqa: T201
 
-path_07: Path = path_final / "info_topik.csv"
-if not path_07.exists():
+if not (path_07 := path_final / "info_topik.csv").exists():
     (
         pl.read_json(source=path_01)
         .select(["topik"])
@@ -209,8 +183,7 @@ path_07_time: float = time.time() - start - accumulate_time
 accumulate_time += path_07_time
 print(path_07, f"created in {path_07_time:.2f} seconds.")  # noqa: T201
 
-path_08: Path = Path(".chroma/chroma.sqlite3")
-if not path_08.exists():
+if not (path_08 := Path(".chroma/chroma.sqlite3")).exists():
     chroma_client: chromadb.ClientAPI = chromadb.PersistentClient(
         path=".chroma",
         settings=chromadb.config.Settings(anonymized_telemetry=False),
@@ -230,7 +203,7 @@ if not path_08.exists():
 
     max_batch: int = chroma_client.get_max_batch_size()
 
-    for i in range(0, len(data), max_batch):
+    for i in range(0, len(data), step=max_batch):
         batch: pl.DataFrame = data[i : i + max_batch]
         collection.add(
             ids=batch["id"].to_list(),
