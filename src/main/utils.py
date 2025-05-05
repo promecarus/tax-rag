@@ -8,7 +8,7 @@ from auth0.management import Auth0
 
 def profile_card():
     with st.expander(label="Profil", expanded=True):
-        if (user := st.experimental_user)["is_logged_in"]:
+        if (user := st.user)["is_logged_in"]:
             auth0 = Auth0(
                 domain=(domain := st.secrets["auth"]["auth0"]["domain"]),
                 token=GetToken(
