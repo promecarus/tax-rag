@@ -80,11 +80,6 @@ if not (path_03 := path_clean / "processed.csv").exists():
                 pl.col(name="body_final")
                 .str.replace_all(pattern=r"\r+|\n+|\t+", value="")
                 .str.replace_all(pattern=r"\"", value="'"),
-                pl.col(name="body_final")
-                .map_elements(function=utils.strip_html_tags, return_dtype=pl.Utf8)
-                .str.strip_chars()
-                .str.replace_all(pattern=r"\s+", value=" ")
-                .alias(name="body_final_text_only"),
                 pl.col(name="peraturan_terbaru")
                 .list.eval(expr=pl.element().struct.field(name="permalink"))
                 .list.sort()
@@ -99,6 +94,7 @@ if not (path_03 := path_clean / "processed.csv").exists():
                 .list.join(separator=" "),
             ],
         )
+        .filter(pl.col(name="topik").str.contains(pattern=r"2|3"))
         .write_csv(file=path_03)
     )
 path_03_time: float = time.time() - start - accumulate_time
