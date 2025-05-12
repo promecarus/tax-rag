@@ -3,6 +3,8 @@ import time
 import typing
 
 import httpx
+import ollama
+import pydantic
 import toml
 from lxml import html
 
@@ -65,7 +67,7 @@ def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
 
 
 def strip_html_tags(data: str) -> str:
-    return html.fromstring(html=data).text_content()
+    return html.fromstring(html=data.replace(">", "> ")).text_content()
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[dict]:
@@ -85,3 +87,56 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[dict]:
         chunk_num += 1
 
     return chunks
+
+
+class QAItem(pydantic.BaseModel):
+    question: str
+    answer: str
+
+
+class QAList(pydantic.BaseModel):
+    qa_list: list[QAItem]
+
+
+PROMPT_QA_CREATION = """
+Berikut ini adalah sebuah peraturan perpajakan. Bacalah dan pahami isinya dengan teliti.
+Kemudian, buatlah daftar pertanyaan dan jawaban berdasarkan isi peraturan tersebut,
+dalam bahasa Indonesia yang jelas dan mudah dipahami.
+
+Keluaran yang diharapkan adalah dalam bentuk JSON array, di mana setiap item adalah
+objek yang memiliki dua field:
+- "question": pertanyaan yang relevan berdasarkan isi peraturan
+- "answer": jawaban lengkap dan benar atas pertanyaan tersebut, berdasarkan isi
+peraturan, jangan gunakan kata "itu" atau "ini" dalam jawaban, gunakan kalimat yang
+jelas dan lengkap
+
+Gunakan bahasa yang natural namun tetap formal. Minimal 2 pasang pertanyaan dan jawaban,
+maksimal 10, jangan kurang atau lebih dari itu.
+"""
+
+counter = 0
+
+
+def generate_qa_list(regulation: str) -> list[QAItem]:
+    global counter
+    counter += 1
+
+    while True:
+        try:
+            response: ollama.ChatResponse = ollama.chat(
+                model="granite3.3:2b",
+                messages=[
+                    {"role": "user", "content": regulation},
+                    {"role": "user", "content": PROMPT_QA_CREATION},
+                ],
+                format=QAList.model_json_schema(),
+                options={"temperature": 0},
+            )
+            print(counter)  # noqa: T201
+
+            return QAList.model_validate_json(
+                json_data=response.message.content,
+            ).qa_list
+
+        except Exception as e:
+            print(e)  # noqa: T201
