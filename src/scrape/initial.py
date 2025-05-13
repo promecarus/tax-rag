@@ -123,16 +123,7 @@ print(path_05, f"created in {path_05_time:.2f} seconds.")  # noqa: T201
 if not (path_06 := path_final / "embed.csv").exists():
     (
         pl.read_csv(source=path_03)
-        .select(
-            [
-                "permalink",
-                "tanggal_efektif",
-                "status_dokumen",
-                "topik",
-                "jenis_peraturan",
-                "body_final",
-            ],
-        )
+        .select(["permalink", "body_final"])
         .with_columns(
             pl.col(name="body_final")
             .map_elements(function=utils.strip_html_tags, return_dtype=pl.Utf8)
@@ -165,10 +156,6 @@ if not (path_06 := path_final / "embed.csv").exists():
             [
                 pl.col(name="id"),
                 pl.col(name="permalink"),
-                pl.col(name="tanggal_efektif"),
-                pl.col(name="status_dokumen"),
-                pl.col(name="topik"),
-                pl.col(name="jenis_peraturan"),
                 pl.col(name="question"),
                 pl.col(name="answer"),
             ],
@@ -186,23 +173,28 @@ if not (path_07 := Path(".chroma/chroma.sqlite3")).exists():
     )
     collection: chromadb.Collection = chroma_client.create_collection(name="tax-rag")
 
-    data: pl.DataFrame = pl.read_csv(source=path_06).select(
-        [
-            pl.concat_str(
-                exprs=[pl.col(name="permalink"), pl.col(name="id")],
-                separator="#",
-            ).alias(name="id"),
-            pl.struct(
-                [
-                    pl.col(name="answer"),
-                    pl.col(name="permalink"),
-                    pl.col(name="status_dokumen"),
-                    pl.col(name="topik"),
-                    pl.col(name="jenis_peraturan"),
-                ],
-            ).alias(name="metadata"),
-            pl.col(name="question").alias(name="document"),
-        ],
+    data: pl.DataFrame = (
+        pl.read_csv(source=path_06)
+        .join(other=pl.read_csv(source=path_03), on="permalink")
+        .select(
+            [
+                pl.concat_str(
+                    exprs=[pl.col(name="permalink"), pl.col(name="id")],
+                    separator="#",
+                ).alias(name="id"),
+                pl.struct(
+                    [
+                        pl.col(name="answer"),
+                        pl.col(name="permalink"),
+                        pl.col(name="status_dokumen"),
+                        pl.col(name="topik"),
+                        pl.col(name="jenis_peraturan"),
+                        pl.col(name="nomor_peraturan"),
+                    ],
+                ).alias(name="metadata"),
+                pl.col(name="question").alias(name="document"),
+            ],
+        )
     )
 
     max_batch: int = chroma_client.get_max_batch_size()
