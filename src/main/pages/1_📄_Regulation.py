@@ -15,21 +15,10 @@ with st.sidebar:
 
 st.title(body="📄 Regulation")
 
-df_info: pl.DataFrame = (
-    get_df(source="var/03_final/info.csv")
-    .with_columns(
-        pl.col(name="tanggal_efektif").str.strptime(
-            dtype=pl.Date,
-            format="%Y-%m-%d",
-        ),
-    )
-    .join(
-        other=get_df(source="var/03_final/regulation.csv"),
-        on="permalink",
-        how="inner",
-    )
+df_info: pl.DataFrame = get_df(source="var/03_final/regulation.csv").with_columns(
+    pl.col(name="tanggal_efektif").str.strptime(dtype=pl.Date, format="%Y-%m-%d"),
 )
-df_info_topik: pl.DataFrame = get_df(source="var/03_final/info_topik.csv")
+df_topik: pl.DataFrame = get_df(source="var/03_final/topic.csv")
 
 if filters := st.multiselect(
     label="Filter based on:",
@@ -84,9 +73,7 @@ if filters := st.multiselect(
             case "topik":
                 options: list[str] = sorted(
                     [
-                        df_info_topik.filter(pl.col(name="uuid") == int(i))[
-                            "keterangan"
-                        ][0]
+                        df_topik.filter(pl.col(name="uuid") == int(i))["keterangan"][0]
                         for i in df_info["topik"].str.split(by=" ").explode().unique()
                     ],
                 )
@@ -96,7 +83,7 @@ if filters := st.multiselect(
                         pattern="|".join(
                             [
                                 str(
-                                    object=df_info_topik.filter(
+                                    object=df_topik.filter(
                                         pl.col(name="keterangan") == result,
                                     )["uuid"][0],
                                 )
@@ -170,7 +157,7 @@ if rows := st.dataframe(
                 options=(
                     result[0]
                     if (
-                        result := df_info_topik.filter(
+                        result := df_topik.filter(
                             pl.col(name="uuid") == int(uuid),
                         )["keterangan"]
                     ).shape
