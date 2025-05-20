@@ -1,10 +1,7 @@
-import datetime
-
 import chromadb
 import ollama
-import polars as pl
 import streamlit as st
-from utils import get_df, profile_card
+from utils import get_augmented_prompt, profile_card
 
 st.set_page_config(
     page_title="Tax RAG Chat",
@@ -18,160 +15,95 @@ if "msgs" not in st.session_state:
 with st.sidebar:
     profile_card()
 
-    if st.button(label="Clear chat", use_container_width=True):
-        st.session_state["msgs"] = []
+    with st.expander(label="Konfigurasi Chat"):
+        if st.button(label="Bersihkan chat", use_container_width=True):
+            st.session_state["msgs"] = []
 
-    model: str = st.selectbox(
-        label="Select model:",
-        options=sorted(
-            [i["model"] for i in ollama.list()["models"] if "embed" not in i["model"]],
-        ),
-        help="Select the model to use for the chat.",
-    )
+        st.session_state["model"] = st.selectbox(
+            label="Pilih model:",
+            options=(
+                models := sorted(
+                    [
+                        i["model"]
+                        for i in ollama.list()["models"]
+                        if "embed" not in i["model"]
+                    ],
+                )
+            ),
+            index=models.index("granite3.3:2b"),
+            help="Pilih model untuk digunakan pada chat.",
+        )
 
-    n_results: int = st.number_input(
-        label="Documents to retrieve:",
-        min_value=1,
-        max_value=10,
-        value=3,
-        help="Top documents used for answer (1-10)",
-    )
+        st.session_state["n_results"] = st.number_input(
+            label="Jumlah dokumen:",
+            min_value=1,
+            max_value=10,
+            value=1,
+            help="Dokumen teratas yang digunakan untuk menjawab (1-10)",
+        )
 
-    collection: chromadb.Collection = chromadb.PersistentClient(
-        path=".chroma",
-    ).get_collection(name="tax-rag")
+        collection: chromadb.Collection = chromadb.PersistentClient(
+            path=".chroma",
+        ).get_collection(name="tax-rag")
 
-    exlude: list[str] = st.multiselect(
-        label="Exclude regulation types",
-        options=sorted(
-            {x["jenis_peraturan"] for x in collection.get()["metadatas"]},
-        ),
-        default=[
-            "Pengumuman",
-            "Surat Edaran Direktur Jenderal Pajak",
-            "Surat Edaran Direktur Jenderal Anggaran",
-        ],
-        help="Regulation types to exclude from the search.",
-    )
+        st.session_state["include"] = st.multiselect(
+            label="Status peraturan yang disertakan",
+            options=sorted(
+                {x["status_dokumen"] for x in collection.get()["metadatas"]},
+            ),
+            default=["Berlaku"],
+            help="Status peraturan yang disertakan dalam pencarian.",
+        )
+
+        st.session_state["show_retrieved"] = st.toggle(
+            label="Tampilkan pencarian",
+            value=True,
+            help="Tampilkan dokumen yang diambil pada proses pencarian.",
+        )
+
+        st.session_state["show_augmented"] = st.toggle(
+            label="Tampilkan prompt",
+            value=True,
+            help="Tampilkan prompt yang dihasilkan dari dokumen yang diambil.",
+        )
 
 st.title(body="✨ Tax RAG Chat")
 
-for msg in st.session_state["msgs"]:
-    st.chat_message(name=msg["role"]).markdown(body=msg["content"])
+for i, msg in enumerate(iterable=st.session_state["msgs"]):
+    with st.chat_message(name=msg["role"]):
+        if msg["role"] == "assistant":
+            get_augmented_prompt(
+                prompt=st.session_state["msgs"][i - 1]["content"],
+                query_result=collection.query(
+                    query_texts=st.session_state["msgs"][i - 1]["content"],
+                    n_results=st.session_state["n_results"],
+                    where={"status_dokumen": {"$in": st.session_state["include"]}},
+                ),
+            )
+
+        st.markdown(body=msg["content"])
 
 if prompt := st.chat_input():
     st.session_state["msgs"].append({"role": "user", "content": prompt})
 
     st.chat_message(name="user").markdown(body=prompt)
 
-    query_result: chromadb.QueryResult = collection.query(
-        query_texts=prompt,
-        n_results=n_results,
-        where={"jenis_peraturan": {"$nin": exlude}},
-    )
-
     with st.chat_message(name="assistant"):
-        for tab, info, document, metadata in zip(
-            st.tabs(tabs=[f"Dokumen {x}" for x in range(1, n_results + 1)]),
-            query_result["ids"][0],
-            query_result["documents"][0],
-            query_result["metadatas"][0],
-            strict=True,
-        ):
-            with tab:
-                st.write(
-                    "**{} Nomor: {}**\n\n**ID**: `{}`\n\n**Topik**: {}".format(
-                        metadata["jenis_peraturan"],
-                        metadata["nomor_peraturan"],
-                        info.split(sep="#")[0],
-                        ", ".join(
-                            result[0]
-                            if (
-                                result := get_df(
-                                    source="var/03_final/info_topik.csv",
-                                ).filter(
-                                    pl.col(name="uuid") == int(uuid),
-                                )["keterangan"]
-                            ).shape
-                            else None
-                            for uuid in metadata["topik"].split(" ")
-                        ),
-                    ),
-                )
-
-                st.code(
-                    body=document,
-                    wrap_lines=True,
-                )
-
-        prompt: str = (
-            """
-            **Pertanyaan Pengguna**:
-            {0}
-
-            ---
-
-            **Konteks yang Tersedia**:
-            {1}
-
-            ---
-
-            **Instruksi Generasi Jawaban**
-            1. **Role**:
-             Anda adalah petugas sosialisasi pajak yang ahli menjelaskan regulasi.
-            2. **Analisis**:
-             - Bandingkan semua dokumen konteks
-             - Identifikasi 3 poin kunci paling relevan
-             - Prioritaskan sumber resmi (UU/Peraturan Dirjen)
-            3. **Struktur Jawaban Wajib**:
-             **a. Ringkasan Eksekutif** (maks 2 kalimat)
-             **b. Dasar Hukum** (format: [Pasal XX UU PPh])
-            4. **Format Referensi**:
-             - Untuk setiap pernyataan faktual, cantumkan [Dokumen X]
-             - Contoh: "Berdasarkan [Dokumen 2]..."
-            5. **Bahasa**:
-             - Semi-formal (sesuai gaya sosialisasi publik)
-             - Gunakan analogi sederhana untuk konsep kompleks
-             - Bold untuk terminologi teknis: **NPWP**, **SPT**
-            6. **Validasi**:
-             - Jika informasi tidak lengkap:
-             "Informasi terbatas pada {2}.
-             Untuk detail lengkap, kunjungi [https://www.pajak.go.id]"
-            """.replace("  ", "")
-            .strip()
-            .format(
-                prompt,
-                "\n".join(
-                    [
-                        "Dokumen {}: [{} Nomor: {}] {}".format(
-                            i,
-                            meta_data["jenis_peraturan"],
-                            meta_data["nomor_peraturan"],
-                            doc,
-                        )
-                        for i, doc, meta_data in zip(
-                            list(range(1, n_results + 1)),
-                            query_result["documents"][0],
-                            query_result["metadatas"][0],
-                            strict=True,
-                        )
-                    ],
-                ),
-                datetime.datetime.now(tz=datetime.UTC),
-            )
-        )
-
-        st.code(
-            body=prompt,
-            wrap_lines=True,
+        augmented_prompt: str = get_augmented_prompt(
+            prompt=prompt,
+            query_result=collection.query(
+                query_texts=prompt,
+                n_results=st.session_state["n_results"],
+                where={"status_dokumen": {"$in": st.session_state["include"]}},
+            ),
         )
 
         response: str = st.write_stream(
             stream=(
                 chunk["message"]["content"]
                 for chunk in ollama.chat(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    model=st.session_state["model"],
+                    messages=[{"role": "user", "content": augmented_prompt}],
                     stream=True,
                 )
             ),

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import chromadb
 import polars as pl
 import streamlit as st
 from auth0.authentication import GetToken
@@ -46,6 +47,98 @@ def profile_card():
         else:
             if st.button(label="Masuk", use_container_width=True):
                 st.login(provider="auth0")
+
+
+def get_augmented_prompt(
+    prompt: str,
+    query_result: chromadb.QueryResult,
+) -> str:
+    if st.session_state["show_retrieved"]:
+        for tab, document, metadata in zip(
+            st.tabs(
+                tabs=[
+                    f"Dokumen {x}" for x in range(1, st.session_state["n_results"] + 1)
+                ],
+            ),
+            query_result["documents"][0],
+            query_result["metadatas"][0],
+            strict=True,
+        ):
+            with tab:
+                st.write(
+                    "**{} Nomor: {}**\n\n**ID**: `{}`\n\n**Topik**: {}".format(
+                        metadata["jenis_peraturan"],
+                        metadata["nomor_peraturan"],
+                        metadata["permalink"],
+                        ", ".join(
+                            result[0]
+                            if (
+                                result := get_df(
+                                    source="var/03_final/topic.csv",
+                                ).filter(pl.col(name="uuid") == int(uuid))["keterangan"]
+                            ).shape
+                            else None
+                            for uuid in metadata["topik"].split(" ")
+                        ),
+                    ),
+                )
+
+                st.write(
+                    ":blue-badge[Tanya:] {}\n\n:green-badge[Jawab:] {}".format(
+                        document,
+                        metadata["answer"],
+                    ),
+                )
+
+    augmented_prompt: str = (
+        """
+Instruksi Generasi Jawaban
+1. Role:
+ Anda adalah petugas sosialisasi pajak yang ahli menjelaskan regulasi.
+2. Bahasa:
+ - Jawablah hanya dalam Bahasa Indonesia, tanpa menggunakan bahasa lain.
+ - Semi-formal (sesuai gaya sosialisasi publik)
+ - Gunakan analogi sederhana untuk konsep kompleks
+ - Bold untuk terminologi teknis: **NPWP**, **SPT**
+3. Validasi:
+ - Jika nantinya informasi tidak lengkap, respon dengan: "Informasi terbatas pada, untuk
+ detail lengkap, kunjungi https://www.pajak.go.id"
+ - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang
+ relevan"
+ - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak
+ relevan"
+
+Konteks yang Tersedia:
+{}
+
+Pertanyaan Pengguna:
+{}
+""".replace("  ", "")
+        .strip()
+        .format(
+            "\n".join(
+                [
+                    "- [{} Nomor: {}] {} {}".format(
+                        meta_data["jenis_peraturan"],
+                        meta_data["nomor_peraturan"],
+                        question,
+                        meta_data["answer"],
+                    )
+                    for question, meta_data in zip(
+                        query_result["documents"][0],
+                        query_result["metadatas"][0],
+                        strict=True,
+                    )
+                ],
+            ),
+            prompt,
+        )
+    )
+
+    if st.session_state["show_augmented"]:
+        st.code(body=augmented_prompt, wrap_lines=True)
+
+    return augmented_prompt
 
 
 @st.cache_data
