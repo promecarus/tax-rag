@@ -1,13 +1,26 @@
 import chromadb
 import ollama
 import streamlit as st
-from utils import get_augmented_prompt, profile_card
+from utils import get_augmented_prompt, get_timestamp, profile_card
 
 st.set_page_config(
     page_title="Tax RAG Chat",
     page_icon="✨",
     initial_sidebar_state="expanded",
 )
+
+with st.sidebar:
+    if st.button(label="Chat baru", use_container_width=True):
+        st.session_state["msgs"] = []
+
+        if (user := st.user)["is_logged_in"]:
+            st.query_params["ts"] = get_timestamp()
+
+if (user := st.user)["is_logged_in"]:
+    st.query_params["ts"] = st.query_params.get("ts", default=get_timestamp())
+
+    # st.write(user["sub"])
+    # st.write(st.query_params["ts"])
 
 if "msgs" not in st.session_state:
     st.session_state["msgs"] = []

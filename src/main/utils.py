@@ -1,10 +1,18 @@
+from datetime import datetime
 from pathlib import Path
 
 import chromadb
 import polars as pl
+import pytz
 import streamlit as st
 from auth0.authentication import GetToken
 from auth0.management import Auth0
+
+
+def get_timestamp() -> str:
+    return datetime.now(tz=pytz.timezone(zone="Asia/Jakarta")).strftime(
+        format="%Y%m%d%H%M%S",
+    )
 
 
 def profile_card():
