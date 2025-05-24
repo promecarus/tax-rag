@@ -109,12 +109,9 @@ Instruksi Generasi Jawaban
  - Gunakan analogi sederhana untuk konsep kompleks
  - Bold untuk terminologi teknis: **NPWP**, **SPT**
 3. Validasi:
- - Jika nantinya informasi tidak lengkap, respon dengan: "Informasi terbatas pada, untuk
- detail lengkap, kunjungi https://www.pajak.go.id"
- - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang
- relevan"
- - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak
- relevan"
+ - Jika informasi tidak lengkap, respon dengan: "Informasi terbatas pada, untuk detail lengkap, kunjungi https://www.pajak.go.id"
+ - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang relevan"
+ - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak relevan"
 
 Konteks yang Tersedia:
 {}

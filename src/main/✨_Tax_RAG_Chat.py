@@ -1,7 +1,23 @@
+import json
+
 import chromadb
 import ollama
 import streamlit as st
+from sqlmodel import Field, Session, SQLModel, create_engine, select
 from utils import get_augmented_prompt, get_timestamp, profile_card
+
+SQLModel.__table_args__ = {"extend_existing": True}
+
+
+class History(SQLModel, table=True):
+    user_id: str = Field(primary_key=True)
+    timestamp: str = Field(primary_key=True)
+    messages: str
+
+
+SQLModel.metadata.create_all(
+    bind=(engine := create_engine(url="sqlite:///.history.db")),
+)
 
 st.set_page_config(
     page_title="Tax RAG Chat",
@@ -13,20 +29,65 @@ with st.sidebar:
     if st.button(label="Chat baru", use_container_width=True):
         st.session_state["msgs"] = []
 
-        if (user := st.user)["is_logged_in"]:
+        if st.user["is_logged_in"]:
             st.query_params["ts"] = get_timestamp()
 
-if (user := st.user)["is_logged_in"]:
+if st.user["is_logged_in"]:
     st.query_params["ts"] = st.query_params.get("ts", default=get_timestamp())
 
-    # st.write(user["sub"])
-    # st.write(st.query_params["ts"])
+    if "msgs" not in st.session_state:
+        with Session(bind=engine) as session:
+            st.session_state["msgs"] = (
+                json.loads(s=session_data.messages)
+                if (
+                    session_data := session.exec(
+                        statement=select(History).where(
+                            (History.user_id == st.user["sub"])
+                            & (History.timestamp == st.query_params["ts"]),
+                        ),
+                    ).first()
+                )
+                else []
+            )
+
 
 if "msgs" not in st.session_state:
     st.session_state["msgs"] = []
 
 with st.sidebar:
     profile_card()
+
+    if st.user["is_logged_in"]:
+        with st.expander(label="Riwayat Chat"), Session(bind=engine) as session:
+            for i in session.exec(
+                statement=select(History).where(History.user_id == st.user["sub"]),
+            ).all():
+                select_history, delete_history = st.columns(spec=[6, 1])
+                if select_history.button(
+                    label=f":small[{json.loads(i.messages)[0]['content']}]",
+                    help=f":small[{i.timestamp}]",
+                    use_container_width=True,
+                ):
+                    st.query_params["ts"] = i.timestamp
+                    del st.session_state["msgs"]
+                    st.rerun()
+
+                if delete_history.button(
+                    label="🗑️",
+                    key=f"delete_{i.timestamp}",
+                    help="Hapus riwayat chat ini",
+                    use_container_width=True,
+                ):
+                    session.delete(
+                        instance=session.exec(
+                            statement=select(History).where(
+                                (History.user_id == st.user["sub"])
+                                & (History.timestamp == i.timestamp),
+                            ),
+                        ).one(),
+                    )
+                    session.commit()
+                    st.rerun()
 
     with st.expander(label="Konfigurasi Chat"):
         if st.button(label="Bersihkan chat", use_container_width=True):
@@ -123,3 +184,23 @@ if prompt := st.chat_input():
         )
 
     st.session_state["msgs"].append({"role": "assistant", "content": response})
+
+    if st.user["is_logged_in"]:
+        with Session(bind=engine) as session:
+            if existing := session.exec(
+                statement=select(History).where(
+                    (History.user_id == st.user["sub"])
+                    & (History.timestamp == st.query_params["ts"]),
+                ),
+            ).first():
+                existing.messages = json.dumps(st.session_state["msgs"])
+            else:
+                session.add(
+                    instance=History(
+                        user_id=st.user["sub"],
+                        timestamp=st.query_params["ts"],
+                        messages=json.dumps(st.session_state["msgs"]),
+                    ),
+                )
+
+            session.commit()
