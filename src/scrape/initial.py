@@ -22,7 +22,9 @@ accumulate_time: float = 0.0
 
 if not (path_01 := path_raw / "index.json").exists():
     (
-        pl.DataFrame(data=asyncio.run(main=utils.get_all_list_regs(limit=4000)))
+        pl.DataFrame(
+            data=asyncio.run(main=utils.get_all_list_regs(limit=4000, topic=[2, 3])),
+        )
         .unique(subset="permalink")
         .write_json(file=path_01)
     )
@@ -46,7 +48,7 @@ print(path_02, f"created in {path_02_time:.2f} seconds.")  # noqa: T201
 
 if not (path_03 := path_clean / "processed.csv").exists():
     (
-        pl.read_json(source=path_02)
+        pl.read_json(source=path_02, infer_schema_length=284)
         .select(
             [
                 pl.col(name="permalink"),
@@ -93,7 +95,6 @@ if not (path_03 := path_clean / "processed.csv").exists():
                 .list.join(separator=" "),
             ],
         )
-        .filter(pl.col(name="topik").str.contains(pattern=r"2|3"))
         .write_csv(file=path_03)
     )
 path_03_time: float = time.time() - start - accumulate_time

@@ -11,7 +11,9 @@ from lxml import html
 CONFIG: dict[str, typing.Any] = toml.load(f=".env.toml")
 
 
-async def req_list_regs(page: int, limit: int) -> httpx.Response:
+async def req_list_regs(page: int, limit: int, topic: list[int]) -> httpx.Response:
+    if topic is None:
+        topic = [2, 3]
     async with httpx.AsyncClient(timeout=60) as client:
         return await client.post(
             url=f"{CONFIG['url']['base']}/api/req-be",
@@ -21,13 +23,14 @@ async def req_list_regs(page: int, limit: int) -> httpx.Response:
                 "data": {
                     "sorted_by": "tanggal_efektif[desc]",
                     "pagination": {"page": page, "limit": limit},
+                    "topik_id": topic,
                 },
             },
         )
 
 
-async def get_all_list_regs(limit: int) -> dict[str, typing.Any]:
-    first: httpx.Response = await req_list_regs(page=1, limit=limit)
+async def get_all_list_regs(limit: int, topic: list[int]) -> dict[str, typing.Any]:
+    first: httpx.Response = await req_list_regs(page=1, limit=limit, topic=topic)
 
     data: dict[str, typing.Any] = first.json()["data"]["search_data"]
 
@@ -36,7 +39,7 @@ async def get_all_list_regs(limit: int) -> dict[str, typing.Any]:
     async with asyncio.TaskGroup() as tg:
         tasks.extend(
             [
-                tg.create_task(coro=req_list_regs(page=page, limit=limit))
+                tg.create_task(coro=req_list_regs(page=page, limit=limit, topic=topic))
                 for page in range(2, first.json()["pagination"]["total_page"] + 1)
             ],
         )
