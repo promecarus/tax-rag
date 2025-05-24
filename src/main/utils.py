@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from datetime import datetime
 from pathlib import Path
 
@@ -109,7 +111,7 @@ Instruksi Generasi Jawaban
  - Gunakan analogi sederhana untuk konsep kompleks
  - Bold untuk terminologi teknis: **NPWP**, **SPT**
 3. Validasi:
- - Jika informasi tidak lengkap, respon dengan: "Informasi terbatas pada, untuk detail lengkap, kunjungi https://www.pajak.go.id"
+ - Jika informasi tidak lengkap, respon dengan: "Informasi terbatas, untuk detail lengkap, kunjungi https://www.pajak.go.id"
  - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang relevan"
  - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak relevan"
 
