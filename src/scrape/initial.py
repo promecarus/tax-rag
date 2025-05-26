@@ -10,11 +10,7 @@ path_raw = Path("var/01_raw")
 path_clean = Path("var/02_clean")
 path_final = Path("var/03_final")
 
-for path in [
-    path_raw,
-    path_clean,
-    path_final,
-]:
+for path in [path_raw, path_clean, path_final]:
     path.mkdir(parents=True, exist_ok=True)
 
 start: float = time.time()
@@ -28,9 +24,7 @@ if not (path_01 := path_raw / "index.json").exists():
         .unique(subset="permalink")
         .with_columns(
             pl.col(name="topik")
-            .list.eval(
-                expr=pl.element().struct.field(name="uuid").cast(dtype=pl.Utf8),
-            )
+            .list.eval(expr=pl.element().struct.field(name="uuid").cast(dtype=pl.Utf8))
             .list.sort()
             .list.join(separator=" ")
             .alias("flattened_topik"),
@@ -50,9 +44,7 @@ if not (path_02 := path_raw / "detail.json").exists():
             .map_elements(function=utils.get_detail_reg, return_dtype=pl.Struct)
             .alias(name="detail"),
         )
-        .with_columns(
-            pl.col(name="flattened_topik").alias("topik"),
-        )
+        .with_columns(pl.col(name="flattened_topik").alias("topik"))
         .drop("flattened_topik")
         .write_json(file=path_02)
     )

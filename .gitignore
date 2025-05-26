@@ -1,4 +1,5 @@
 .env.toml
+.history.db
 **/__pycache__
 **/*.log
 /.chroma
