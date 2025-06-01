@@ -212,4 +212,60 @@ path_07_time: float = time.time() - start - accumulate_time
 accumulate_time += path_07_time
 print(path_07, f"created in {path_07_time:.2f} seconds.")  # noqa: T201
 
+if (
+    df_must_remove := (df_embed := pl.read_csv(source="var/03_final/embed.csv")).filter(
+        pl.col(name="question") == "Failed to generate.",
+    )
+).height:
+    pl.concat(
+        items=[
+            df_embed.filter(pl.col(name="question") != "Failed to generate."),
+            df_must_remove.join(
+                other=pl.read_csv(source="var/03_final/regulation.csv"),
+                on="permalink",
+                how="inner",
+            )
+            .select(["permalink", "body_final"])
+            .with_columns(
+                pl.col(name="body_final")
+                .map_elements(function=utils.strip_html_tags, return_dtype=pl.Utf8)
+                .str.strip_chars()
+                .str.replace_all(pattern=r"\s+", value=" "),
+            )
+            .with_columns(
+                pl.col(name="body_final").map_elements(
+                    function=utils.generate_qa_list,
+                    return_dtype=pl.List(
+                        inner=pl.Struct(
+                            fields=[
+                                pl.Field(name="question", dtype=pl.Utf8),
+                                pl.Field(name="answer", dtype=pl.Utf8),
+                            ],
+                        ),
+                    ),
+                ),
+            )
+            .explode(columns="body_final")
+            .unnest(columns="body_final")
+            .with_columns(
+                pl.col(name="permalink")
+                .cum_count()
+                .over(partition_by="permalink")
+                .cast(dtype=pl.Utf8)
+                .alias(name="id"),
+            )
+            .select(
+                [
+                    pl.col(name="id").cast(dtype=pl.Int64),
+                    pl.col(name="permalink"),
+                    pl.col(name="question"),
+                    pl.col(name="answer"),
+                ],
+            ),
+        ],
+    ).write_csv(file=path_06)
+    failed_question_update_time: float = time.time() - start - accumulate_time
+    accumulate_time += failed_question_update_time
+    print(path_06, f"updated in {failed_question_update_time:.2f} seconds.")  # noqa: T201
+
 print(f"\nTotal time: {accumulate_time:.2f} seconds.")  # noqa: T201

@@ -1,10 +1,19 @@
+import contextlib
+import locale
+
 import polars as pl
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 from utils import get_df, profile_card
 
+try:
+    locale.setlocale(category=locale.LC_TIME, locale="id_ID.UTF-8")
+except locale.Error:
+    with contextlib.suppress(locale.Error):
+        locale.setlocale(category=locale.LC_TIME, locale="Indonesian_Indonesia.1252")
+
 st.set_page_config(
-    page_title="Regulation",
+    page_title="Regulasi",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -13,7 +22,7 @@ st.set_page_config(
 with st.sidebar:
     profile_card()
 
-st.title(body="📄 Regulation")
+st.title(body="📄 Regulasi")
 
 df_info: pl.DataFrame = get_df(source="var/03_final/regulation.csv").with_columns(
     pl.col(name="tanggal_efektif").str.strptime(dtype=pl.Date, format="%Y-%m-%d"),
@@ -21,7 +30,7 @@ df_info: pl.DataFrame = get_df(source="var/03_final/regulation.csv").with_column
 df_topik: pl.DataFrame = get_df(source="var/03_final/topic.csv")
 
 if filters := st.multiselect(
-    label="Filter based on:",
+    label="Filter berdasarkan:",
     options=[
         "Jenis Peraturan",
         "Keywords",
@@ -29,6 +38,8 @@ if filters := st.multiselect(
         "Tanggal Efektif",
         "Topik",
     ],
+    help="Pilih filter yang ingin digunakan untuk menyaring data.",
+    placeholder="Pilih filter...",
 ):
     cols: list[DeltaGenerator] = st.columns(spec=len(filters))
 
@@ -115,7 +126,7 @@ if rows := st.dataframe(
     },
     on_select="rerun",
     selection_mode=["multi-row"],
-)["selection"]["rows"]:
+)["selection"]["rows"][:6]:
     cols = [
         st.columns(spec=len(rows)),
         st.columns(spec=len(rows)),

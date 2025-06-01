@@ -102,19 +102,6 @@ def get_augmented_prompt(
 
     augmented_prompt: str = (
         """
-Instruksi Generasi Jawaban
-1. Role:
- Anda adalah petugas sosialisasi pajak yang ahli menjelaskan regulasi.
-2. Bahasa:
- - Jawablah hanya dalam Bahasa Indonesia, tanpa menggunakan bahasa lain.
- - Semi-formal (sesuai gaya sosialisasi publik)
- - Gunakan analogi sederhana untuk konsep kompleks
- - Bold untuk terminologi teknis: **NPWP**, **SPT**
-3. Validasi:
- - Jika informasi tidak lengkap, respon dengan: "Informasi terbatas, untuk detail lengkap, kunjungi https://www.pajak.go.id"
- - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang relevan"
- - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak relevan"
-
 Konteks yang Tersedia:
 {}
 
@@ -125,11 +112,11 @@ Pertanyaan Pengguna:
         .format(
             "\n".join(
                 [
-                    "- [{} Nomor: {}] {} {}".format(
-                        meta_data["jenis_peraturan"],
-                        meta_data["nomor_peraturan"],
+                    "- {} {} [Sumber: {} Nomor: {}] ".format(
                         question,
                         meta_data["answer"],
+                        meta_data["jenis_peraturan"],
+                        meta_data["nomor_peraturan"],
                     )
                     for question, meta_data in zip(
                         query_result["documents"][0],
@@ -169,7 +156,14 @@ def manage_user_roles(auth0: Auth0, current_user_id: str) -> None:
         ),
     )["users"]
 
-    for user in [user for user in users if user["user_id"] != current_user_id]:
+    for user in [
+        user
+        for user in users
+        if (
+            user["user_id"] != current_user_id
+            and user["user_id"] != "auth0|683cbd4e405794935a6b3ce4"
+        )
+    ]:
         role = next(
             (r["name"] for r in auth0.users.list_roles(id=user["user_id"])["roles"]),
             "Pengguna",
@@ -209,3 +203,5 @@ def manage_user_roles(auth0: Auth0, current_user_id: str) -> None:
                         id=user["user_id"],
                         roles=[st.secrets["auth"]["auth0"]["role_id_admin"]],
                     )
+
+                st.rerun()
