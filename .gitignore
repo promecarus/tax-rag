@@ -6,6 +6,7 @@
 /.ruff_cache
 /.streamlit
 /.venv
+/test
 temp
 tmp
 var

@@ -1,8 +1,10 @@
 import json
+import random
 
 import chromadb
-import ollama
 import streamlit as st
+from google import genai
+from google.genai import types
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from utils import get_augmented_prompt, get_timestamp, profile_card
 
@@ -20,13 +22,14 @@ SQLModel.metadata.create_all(
 )
 
 st.set_page_config(
-    page_title="Tax RAG Chat",
+    page_title="Chat",
     page_icon="✨",
+    layout="wide",
     initial_sidebar_state="expanded",
 )
 
 with st.sidebar:
-    if st.button(label="Chat baru", use_container_width=True):
+    if st.button(label="Chat Baru", use_container_width=True):
         st.session_state["msgs"] = []
 
         if st.user["is_logged_in"]:
@@ -60,7 +63,9 @@ with st.sidebar:
     if st.user["is_logged_in"]:
         with st.expander(label="Riwayat Chat"), Session(bind=engine) as session:
             for i in session.exec(
-                statement=select(History).where(History.user_id == st.user["sub"]),
+                statement=select(History)
+                .where(History.user_id == st.user["sub"])
+                .order_by(History.timestamp.desc()),
             ).all():
                 select_history, delete_history = st.columns(spec=[6, 1])
                 if select_history.button(
@@ -87,24 +92,31 @@ with st.sidebar:
                         ).one(),
                     )
                     session.commit()
+                    if st.query_params["ts"] == i.timestamp:
+                        st.query_params["ts"] = get_timestamp()
+                        del st.session_state["msgs"]
                     st.rerun()
 
     with st.expander(label="Konfigurasi Chat"):
-        if st.button(label="Bersihkan chat", use_container_width=True):
-            st.session_state["msgs"] = []
-
         st.session_state["model"] = st.selectbox(
             label="Pilih model:",
             options=(
-                models := sorted(
-                    [
-                        i["model"]
-                        for i in ollama.list()["models"]
-                        if "embed" not in i["model"]
-                    ],
-                )
+                models := [
+                    "gemini-1.5-flash",
+                    "gemini-1.5-flash-8b",
+                    "gemini-1.5-pro",
+                    "gemini-2.0-flash",
+                    "gemini-2.0-flash-lite",
+                    "gemini-2.5-flash-preview-04-17",
+                    "gemini-2.5-flash-preview-05-20",
+                    "gemma-3-12b-it",
+                    "gemma-3-1b-it",
+                    "gemma-3-27b-it",
+                    "gemma-3-4b-it",
+                    "gemma-3n-e4b-it",
+                ]
             ),
-            index=models.index("granite3.3:2b"),
+            index=models.index("gemini-2.0-flash"),
             help="Pilih model untuk digunakan pada chat.",
         )
 
@@ -112,12 +124,13 @@ with st.sidebar:
             label="Jumlah dokumen:",
             min_value=1,
             max_value=10,
-            value=1,
+            value=2,
             help="Dokumen teratas yang digunakan untuk menjawab (1-10)",
         )
 
         collection: chromadb.Collection = chromadb.PersistentClient(
             path=".chroma",
+            settings=chromadb.config.Settings(anonymized_telemetry=False),
         ).get_collection(name="tax-rag")
 
         st.session_state["include"] = st.multiselect(
@@ -131,7 +144,7 @@ with st.sidebar:
 
         st.session_state["show_retrieved"] = st.toggle(
             label="Tampilkan pencarian",
-            value=True,
+            value=False,
             help="Tampilkan dokumen yang diambil pada proses pencarian.",
         )
 
@@ -141,7 +154,7 @@ with st.sidebar:
             help="Tampilkan prompt yang dihasilkan dari dokumen yang diambil.",
         )
 
-st.title(body="✨ Tax RAG Chat")
+st.title(body="✨ Chat")
 
 for i, msg in enumerate(iterable=st.session_state["msgs"]):
     with st.chat_message(name=msg["role"]):
@@ -174,11 +187,34 @@ if prompt := st.chat_input():
 
         response: str = st.write_stream(
             stream=(
-                chunk["message"]["content"]
-                for chunk in ollama.chat(
+                chunk.text
+                for chunk in genai.Client(
+                    api_key=random.choice(seq=st.secrets["api_keys"]),
+                ).models.generate_content_stream(
                     model=st.session_state["model"],
-                    messages=[{"role": "user", "content": augmented_prompt}],
-                    stream=True,
+                    contents=[
+                        *(
+                            f"{x['role']}({x['content']})"
+                            for x in st.session_state["msgs"][-5:-1]
+                        ),
+                        augmented_prompt,
+                    ],
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        system_instruction="""
+Instruksi Generasi Jawaban:
+1. Role: Anda adalah petugas sosialisasi pajak yang ahli dalam menjawab pertanyaan
+perpajakan. Anda informatif dan membantu. Nantinya akan disertakan riwayat chat
+sebelumnya, jika pengguna tidak menanyakan hal yang berkaitan dengan riwayat chat
+sebelumnya, maka abaikan riwayat chat tersebut.
+2. Bahasa:
+- Jawablah hanya dalam Bahasa Indonesia, meskipun pertanyaan dalam bahasa lain.
+- Sertakan sumber.
+3. Format Jawaban:
+- Jika pertanyaan di luar konteks perpajakan, respon dengan: "Pertanyaan tidak relevan
+dengan perpajakan. Silakan ajukan pertanyaan lain yang berkaitan dengan perpajakan."
+""",
+                    ),
                 )
             ),
         )

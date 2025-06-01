@@ -1,14 +1,24 @@
 # ruff: noqa: E501
 
+import asyncio
+import random
+import time
+import typing
 from datetime import datetime
 from pathlib import Path
 
 import chromadb
+import httpx
 import polars as pl
+import pydantic
 import pytz
 import streamlit as st
+import toml
 from auth0.authentication import GetToken
 from auth0.management import Auth0
+from google import genai
+from google.genai import types
+from lxml import html
 
 
 def get_timestamp() -> str:
@@ -102,19 +112,6 @@ def get_augmented_prompt(
 
     augmented_prompt: str = (
         """
-Instruksi Generasi Jawaban
-1. Role:
- Anda adalah petugas sosialisasi pajak yang ahli menjelaskan regulasi.
-2. Bahasa:
- - Jawablah hanya dalam Bahasa Indonesia, tanpa menggunakan bahasa lain.
- - Semi-formal (sesuai gaya sosialisasi publik)
- - Gunakan analogi sederhana untuk konsep kompleks
- - Bold untuk terminologi teknis: **NPWP**, **SPT**
-3. Validasi:
- - Jika informasi tidak lengkap, respon dengan: "Informasi terbatas, untuk detail lengkap, kunjungi https://www.pajak.go.id"
- - Jika tidak ada informasi yang relevan, respon dengan: "Tidak ada informasi yang relevan"
- - Jika pertanyaan tidak relevan atau tidak jelas, respon dengan: "Pertanyaan tidak relevan"
-
 Konteks yang Tersedia:
 {}
 
@@ -125,11 +122,11 @@ Pertanyaan Pengguna:
         .format(
             "\n".join(
                 [
-                    "- [{} Nomor: {}] {} {}".format(
-                        meta_data["jenis_peraturan"],
-                        meta_data["nomor_peraturan"],
+                    "- {} {} [Sumber: {} Nomor: {}] ".format(
                         question,
                         meta_data["answer"],
+                        meta_data["jenis_peraturan"],
+                        meta_data["nomor_peraturan"],
                     )
                     for question, meta_data in zip(
                         query_result["documents"][0],
@@ -169,7 +166,14 @@ def manage_user_roles(auth0: Auth0, current_user_id: str) -> None:
         ),
     )["users"]
 
-    for user in [user for user in users if user["user_id"] != current_user_id]:
+    for user in [
+        user
+        for user in users
+        if (
+            user["user_id"] != current_user_id
+            and user["user_id"] != "auth0|683cbd4e405794935a6b3ce4"
+        )
+    ]:
         role = next(
             (r["name"] for r in auth0.users.list_roles(id=user["user_id"])["roles"]),
             "Pengguna",
@@ -209,3 +213,121 @@ def manage_user_roles(auth0: Auth0, current_user_id: str) -> None:
                         id=user["user_id"],
                         roles=[st.secrets["auth"]["auth0"]["role_id_admin"]],
                     )
+
+                st.rerun()
+
+
+async def req_list_regs(page: int, limit: int) -> httpx.Response:
+    async with httpx.AsyncClient(timeout=60) as client:
+        return await client.post(
+            url=f"{toml.load(f='.env.toml')['url']['base']}/api/req-be",
+            json={
+                "method": "post",
+                "url": f"{toml.load(f='.env.toml')['url']['index']}",
+                "data": {
+                    "sorted_by": "tanggal_efektif[desc]",
+                    "pagination": {"page": page, "limit": limit},
+                },
+            },
+        )
+
+
+async def get_all_list_regs(limit: int) -> dict[str, typing.Any]:
+    first: httpx.Response = await req_list_regs(page=1, limit=limit)
+
+    data: dict[str, typing.Any] = first.json()["data"]["search_data"]
+
+    tasks: list = []
+
+    async with asyncio.TaskGroup() as tg:
+        tasks.extend(
+            [
+                tg.create_task(coro=req_list_regs(page=page, limit=limit))
+                for page in range(2, first.json()["pagination"]["total_page"] + 1)
+            ],
+        )
+
+    for task in tasks:
+        data.extend(task.result().json()["data"]["search_data"])
+
+    return data
+
+
+def get_detail_reg(permalink: str) -> dict[str, typing.Any]:
+    with httpx.Client(timeout=60) as client:
+        while True:
+            try:
+                response: httpx.Response = client.post(
+                    url=f"{toml.load(f='.env.toml')['url']['base']}/api/req-be",
+                    json={
+                        "method": "post",
+                        "url": f"{toml.load(f='.env.toml')['url']['detail']}",
+                        "data": {"permalink": permalink},
+                    },
+                )
+                if response.status_code == 200:
+                    return response.json()["data"][0]
+            except Exception as e:
+                print(permalink, e)  # noqa: T201
+                time.sleep(0.1)
+
+
+def strip_html_tags(data: str) -> str:
+    return html.fromstring(html=data.replace(">", "> ")).text_content()
+
+
+class QAItem(pydantic.BaseModel):
+    question: str
+    answer: str
+
+
+class QAList(pydantic.BaseModel):
+    qa_list: list[QAItem]
+
+
+counter = 0
+
+
+def generate_qa_list(regulation: str) -> list[QAItem]:
+    global counter
+    counter += 1
+
+    while True:
+        try:
+            response: types.GenerateContentResponse = genai.Client(
+                api_key=random.choice(seq=toml.load(f=".env.toml")["api_keys"]),
+            ).models.generate_content(
+                model="gemini-2.0-flash-lite",
+                contents=regulation,
+                config=types.GenerateContentConfig(
+                    system_instruction="""
+Buatlah daftar pertanyaan dan jawaban yang menyeluruh berdasarkan isi peraturan yang
+diberikan, dalam bahasa Indonesia yang jelas dan mudah dipahami.
+
+Keluaran yang diharapkan adalah dalam bentuk JSON array, di mana setiap item adalah
+objek yang memiliki dua field:
+- "question": pertanyaan yang relevan dan penting terkait dengan isi peraturan, yang
+dapat mencakup aspek-aspek seperti tujuan peraturan, definisi istilah penting, kewajiban
+atau hak yang diatur, sanksi atau konsekuensi pelanggaran, dan lain-lain.
+- "answer": jawaban lengkap dan informatif yang menjawab pertanyaan tersebut,
+berdasarkan isi peraturan yang diberikan. Jawaban harus mencakup informasi penting dari
+peraturan, dan harus ditulis dalam bahasa Indonesia yang formal dan mudah dipahami.
+Pastikan untuk tidak mengulangi pertanyaan dalam jawaban, dan fokus pada memberikan
+jawaban yang tepat dan relevan.
+""",
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                    response_schema=QAList,
+                ),
+            )
+
+            qa_list: list[QAItem] = QAList.model_validate_json(
+                json_data=response.text,
+            ).qa_list
+
+            print(f"{counter:> 5}, {len(qa_list):> 5} pasang pertanyaan-jawaban.")  # noqa: T201
+
+            return qa_list
+
+        except Exception as e:
+            print(e)  # noqa: T201
