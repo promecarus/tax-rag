@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 import asyncio
 import time
 import typing
@@ -99,19 +101,13 @@ class QAList(pydantic.BaseModel):
 
 
 PROMPT_QA_CREATION = """
-Berikut ini adalah sebuah peraturan perpajakan. Bacalah dan pahami isinya dengan teliti.
-Kemudian, buatlah daftar pertanyaan dan jawaban berdasarkan isi peraturan tersebut,
-dalam bahasa Indonesia yang jelas dan mudah dipahami.
+Buatlah daftar pertanyaan dan jawaban berdasarkan isi peraturan tersebut, dalam bahasa Indonesia yang jelas dan mudah dipahami.
 
-Keluaran yang diharapkan adalah dalam bentuk JSON array, di mana setiap item adalah
-objek yang memiliki dua field:
+Keluaran yang diharapkan adalah dalam bentuk JSON array, di mana setiap item adalah objek yang memiliki dua field:
 - "question": pertanyaan yang relevan berdasarkan isi peraturan
-- "answer": jawaban lengkap dan benar atas pertanyaan tersebut, berdasarkan isi
-peraturan, jangan gunakan kata "itu" atau "ini" dalam jawaban, gunakan kalimat yang
-jelas dan lengkap
+- "answer": jawaban lengkap dan benar atas pertanyaan tersebut, berdasarkan isi peraturan, jangan gunakan kata "itu" atau "ini" dalam jawaban, gunakan kalimat yang jelas dan lengkap
 
-Gunakan bahasa yang natural namun tetap formal. Minimal 2 pasang pertanyaan dan jawaban,
-maksimal 10, jangan kurang atau lebih dari itu.
+Gunakan bahasa yang natural namun tetap formal. Minimal 2 pasang pertanyaan dan jawaban, maksimal 10, jangan kurang atau lebih dari itu.
 """
 
 counter = 0
